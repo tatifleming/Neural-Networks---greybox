@@ -1,0 +1,107 @@
+# Importacao de bibliotecas
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+#Carregar a base e visualizar primeiras linhas
+df1 = pd.read_csv('mobile.csv', header=0)  #header=-1 indica que não há linha de header
+df1.head()
+
+#dimnesões da base
+df1.shape
+
+# Indicar a semente inicial e para divisão da base em treino e teste
+
+import random
+np.random.seed(0) #semente inicial
+nlinhas = df1.shape[0]
+
+from sklearn.model_selection import train_test_split
+x_train, x_test, y_train, y_test = train_test_split(df1.loc[:,df1.columns != 'price_range'], df1['price_range'], test_size=0.3)
+
+# alguns dados estatisticos por atributo
+x_train.describe()
+
+# Análise exploratória
+
+# Dispersão
+
+# Visualização RAM x INT_MEMORY (Internal Memory in Gigabytes) e cores comos as classes de saída (PRICE_RANGE)
+
+plt.scatter(x_train['ram'], x_train['int_memory'], c=y_train, cmap=plt.cm.Spectral)
+plt.show()
+
+# Visualização PRICE_RANGE x BATTERY_POWER e cores comos as classes de saída (PRICE_RANGE)
+
+# Análise exploratória
+
+# Visualização RAM x INT_MEMORY (Internal Memory in Gigabytes) e cores comos as classes de saída (PRICE_RANGE)
+
+plt.scatter(x_train['ram'], x_train['int_memory'], c=y_train, cmap=plt.cm.Spectral)
+plt.show()
+
+#Visualização PRICE_RANGE x BATTERY_POWER e cores comos as classes de saída (PRICE_RANGE)
+
+df1.boxplot(column=['battery_power'], by=['price_range'])
+
+df1.boxplot(column = ['ram'], by= ['price_range'])
+
+#análise de correlação
+import seaborn as sns
+corr = df1.corr()
+sns.heatmap(corr,cmap='YlGnBu',vmin=-1,vmax=1)
+
+df1.boxplot(column = ['n_cores'], by= ['price_range'])
+
+# Normalizando os Dados
+
+from sklearn import preprocessing
+preprocessParams = preprocessing.StandardScaler().fit(x_train)
+X_train_normalized = preprocessParams.transform(x_train)
+X_test_normalized = preprocessParams.transform(x_test)
+
+# Transformar em dataframe mantendo os nomes das colunas
+X_train_normalized = pd.DataFrame(X_train_normalized, columns = x_train.columns.values) 
+X_test_normalized = pd.DataFrame(X_test_normalized, columns = x_test.columns.values)
+
+#Rede Neural
+
+from keras import Model, Sequential
+from keras.layers import Dense
+from keras.optimizers import SGD
+
+NumberOfClasses = len(y_train.unique())
+NumberOfClasses
+
+RN = Sequential()
+RN.add(Dense(10,input_shape = X_train_normalized.shape[1:],activation = 'sigmoid'))
+RN.add(Dense(NumberOfClasses,activation = 'sigmoid'))
+RN.summary()
+
+# treinamento
+from keras.utils import to_categorical
+sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9)
+RN.compile(optimizer = sgd, loss = 'mean_squared_error', metrics = ['accuracy'])
+trainedRN = RN.fit(X_train_normalized,to_categorical(y_train),
+                            epochs = 100, verbose = 1)
+                            
+score = trainedRN.model.evaluate(X_test_normalized, to_categorical(y_test), verbose = 0)
+print('Test score:', score[0])
+print('Test accuracy:', score[1])
+
+PlotHistory(trainedRN.history)
+
+# Previsão
+from sklearn.metrics import confusion_matrix
+y_test_predicted = RN.predict(X_test_normalized)
+y_test_predicted_indexes = np.argmax(y_test_predicted,axis=1)
+y_test_indexes = y_test.as_matrix()
+
+
+# Matriz de confusão
+confMatrix = pd.DataFrame(confusion_matrix(y_test_predicted_indexes, y_test_indexes), 
+                                           index=['0', '1','2','3'], columns=['0', '1', '2', '3'],) #matriz de confusão
+confMatrix.index.name = 'Actual'
+confMatrix.columns.name = 'Predicted'
+print(confMatrix)
