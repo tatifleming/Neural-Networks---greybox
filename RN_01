@@ -1,1 +1,102 @@
-##### CLASS 01
+##### INICIALIZAÇÃO
+#para conectar ao Drive
+from google.colab import drive # Carrega biblioteca para montar e carregar drive
+drive.mount('/content/drive') # Esse código pedirá autenticação
+
+import os
+os.chdir("/content/drive/My Drive/rn01teste")
+
+### IMPORTANDO BIBLIOTECAS
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+#Carregar a base e visualizar primeiras linhas
+df1 = pd.read_csv('BreastCancer.csv', header=0)  #header=-1 indica que não há linha de header
+#retirar id
+df1 = df1.iloc[:,1:]
+df1.head()
+
+#dimnesões da base
+df1.shape
+
+#SEMENTE INICIAL E TRAIN_TEST_SPLIT
+# Indicar a semente inicial e para divisão da base em treino e teste
+
+import random
+np.random.seed(0) #semente inicial
+nlinhas = df1.shape[0]
+from sklearn.model_selection import train_test_split
+x_train, x_test, y_train, y_test = train_test_split(df1.loc[:,df1.columns != 'diagnosis'], df1['diagnosis'], test_size=0.3)
+
+# alguns dados estatisticos por atributo
+x_train.describe()
+
+# ANÁLISE EXPLORATÓRIA
+
+# Dispersão
+# Visualização Raio x Textura e cores comos as classes de saída (Diagnóstico)
+plt.scatter(x_train['radius_mean'], x_train['texture_mean'], c=y_train, cmap=plt.cm.Spectral)
+plt.show()
+# Visualização Raio x Diagnóstico
+df1.boxplot(column = ['radius_mean'], by= ['diagnosis'])
+
+#NORMALIZAÇÃO DE DADOS
+
+from sklearn import preprocessing
+preprocessParams = preprocessing.StandardScaler().fit(x_train)
+X_train_normalized = preprocessParams.transform(x_train)
+X_test_normalized = preprocessParams.transform(x_test)
+
+# Transformar em dataframe mantendo os nomes das colunas
+X_train_normalized = pd.DataFrame(X_train_normalized, columns = x_train.columns.values) 
+X_test_normalized = pd.DataFrame(X_test_normalized, columns = x_test.columns.values)
+
+# REDE NEURAL
+from keras import Model, Sequential
+from keras.layers import Dense
+from keras.optimizers import SGD
+
+NumberOfClasses = len(y_train.unique())
+NumberOfClasses
+
+from sklearn.preprocessing import LabelEncoder
+labelencoder_y = LabelEncoder()
+y_train = labelencoder_y.fit_transform(y_train)
+y_test = labelencoder_y.fit_transform(y_test)
+print(y_train)
+
+RN = Sequential()
+RN.add(Dense(10,input_shape = X_train_normalized.shape[1:],activation = 'sigmoid'))
+RN.add(Dense(NumberOfClasses,activation = 'sigmoid'))
+RN.summary()
+
+# treinamento
+from keras.utils import to_categorical
+sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9)
+RN.compile(optimizer = sgd, loss = 'mean_squared_error', metrics = ['accuracy'])
+trainedRN = RN.fit(X_train_normalized,to_categorical(y_train),
+                            epochs = 100, verbose = 1)
+                            
+                            
+score = trainedRN.model.evaluate(X_test_normalized, to_categorical(y_test), verbose = 0)
+print('Test score:', score[0])
+print('Test accuracy:', score[1])
+
+from draw_neural_net import *
+PlotHistory(trainedRN.history)
+
+# Previsão
+from sklearn.metrics import confusion_matrix
+y_test_predicted = RN.predict(X_test_normalized)
+y_test_predicted_indexes = np.argmax(y_test_predicted,axis=1)
+y_test_indexes = y_test #.as_matrix()
+
+# Matriz de confusão
+confMatrix = pd.DataFrame(confusion_matrix(y_test_predicted_indexes, y_test_indexes), 
+                                           index=['0', '1'], columns=['0', '1'],) #matriz de confusão
+confMatrix.index.name = 'Actual'
+confMatrix.columns.name = 'Predicted'
+print(confMatrix)
+
