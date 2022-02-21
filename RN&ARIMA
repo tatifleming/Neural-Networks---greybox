@@ -1,0 +1,326 @@
+# ARIMA or RN? 
+# modelo univariado (caso do ar em Pequim)
+
+import pandas as pd   
+from pandas.plotting import register_matplotlib_converters
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from pylab import rcParams
+import itertools
+from pandas import DataFrame
+import math
+from sklearn.metrics import mean_squared_error
+
+dataset = pd.read_csv('/Users/migueltorresporta/Documents/Aalto/Individual/Contamination/dataset.csv')
+
+# Transformation for the date
+dataset['Timestamp'] = dataset['year'].map(str) + "/" + dataset['month'].map(str) + "/" + dataset['day'].map(str) + ' ' + dataset['hour'].map(str) + ":" + "00:00"
+dataset['Timestamp'] = pd.to_datetime(dataset['Timestamp'])
+
+dataset = dataset.set_index('Timestamp')
+
+# Drop the columns that are not going to be used
+dataset = dataset.drop(['No',
+ 'year',
+ 'month',
+ 'day',
+ 'hour',
+ 'DEWP',
+ 'TEMP',
+ 'PRES',
+ 'cbwd',
+ 'Iws',
+ 'Is',
+ 'Ir'], axis=1)
+
+dataset = dataset.dropna()
+
+## Exploratory Data Analysis (EDA)
+
+register_matplotlib_converters()
+plt.figure(figsize=(20,6))
+plt.plot(dataset.index, dataset['pm2.5'])
+plt.title("Levels of PM2.5 particles in Beijing")
+plt.ylabel("PM2.5 concentration (ug/m^3)")
+plt.show()
+
+## Grouping by different frames of time
+# The first method is as simple as to compute the mean of the data measurements by week or month.
+
+weekly = dataset['pm2.5'].resample('W').mean()
+plt.figure(figsize=(20,7))
+plt.plot(weekly)
+plt.title("The weekly average of PM2.5 concentration")
+plt.ylabel("PM2.5 particles")
+plt.grid()
+plt.show()
+
+monthly = dataset['pm2.5'].resample('M').mean()
+plt.figure(figsize=(20,7))
+plt.plot(monthly)
+plt.title("The monthly average of PM2.5 concentration")
+plt.ylabel("PM2.5 particles")
+plt.grid()
+plt.show()
+
+# Moving average
+#This time we are still going to use the mean but in a different way, by using the Moving Average, 
+#that computes the average of N given time steps. It will smooth the data allowing the viewer to infer some visible patterns or trends
+
+movingAverage = dataset['pm2.5'].rolling(window=24).mean()
+
+plt.figure(figsize=(15,5))
+plt.title("Moving average\n Window size 24, equivalent to one day")
+plt.ylabel("PM2.5 particles")
+plt.plot(movingAverage,label="Rolling mean trend")
+
+plt.grid(True)
+
+movingAverage = dataset['pm2.5'].rolling(window=(24*7)).mean()
+
+plt.figure(figsize=(15,5))
+plt.title("Moving average\n Window size 24*7")
+plt.ylabel("PM2.5 particles")
+plt.plot(movingAverage,label="Rolling mean trend")
+
+plt.grid(True)
+
+movingAverage = dataset['pm2.5'].rolling(window=(24*7*30)).mean()
+
+plt.figure(figsize=(15,5))
+plt.title("Moving average\n Window size 5.040, equivalent to one month")
+plt.plot(movingAverage,label="Rolling mean trend")
+plt.ylabel("PM2.5 particles")
+plt.grid(True)
+plt.show()
+
+# we can clearly spot some regular patterns. However, these methods are very sensitive to outliers
+
+# Getting closer to the last weeks
+# The data that we have evaluated so far looks quite messy, and as the objective of this small project is to apply different 
+forecasting techniques, we are going to focus the efforts in the last four weeks of the entire dataset. By doing so the visualizations 
+are going the be easier and we will see clearly how the predictions fit in our data.
+
+last_weeks = dataset.loc['2014-12':'2014']
+plt.figure(figsize=(15,5))
+plt.title("PM2.5 particules in December 2014")
+plt.ylabel("PM2.5 particles")
+plt.plot(last_weeks)
+
+plt.hist(last_weeks['pm2.5'])
+
+last_weeks.describe()
+
+## Stationarity
+####Before applying any statistical model it's important to check if our data is considered as stationary
+# Stationarity basically means that the properties such as the mean and variance don't change over time.
+# There are various ways to check if data is stationary, and one good way is the Test Dickey-Fuller, which states 
+# that if the p-value is lower than a given threshold it won't be considered as stationary.
+
+from statsmodels.tsa.stattools import adfuller
+
+#Perform Dickey-Fuller test:
+print ('Results of Dickey-Fuller Test:')
+dftest = adfuller(last_weeks['pm2.5'], autolag='AIC')
+dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
+for key,value in dftest[4].items():
+    dfoutput['Critical Value (%s)'%key] = value
+print (dfoutput)
+
+p_value = dftest[1]
+
+if p_value <= 0.01:
+    print("\nData is stationary")
+else:
+    print("\n Data is non-stationary ")
+    
+ 
+
+## ARIMA
+
+# Before going through ARIMA we are going to split the data that will help us to train the model, and after that evaluate how accurate it is with the test dataset.
+# Train dataset has the data of 29 days and the test set has 2 days.
+
+train_dataset = last_weeks['2014-12': '2014-12-29']
+test_dataset = last_weeks['2014-12-30': '2014']
+
+# ARIMA stands for Autorregresive Integrated Moving Average. It is used for time series forecasting.
+
+It contains three different components. The autoregressive the regression of the time series onto himself, 
+the Integrated (I) component is to correct the non-stationarity of the data. The last component Moving Average (MA) 
+models the errors based on past errors.
+
+Each component receives different parameters AR(p), I(d), MA(q). To estimate the value of each parameter we need to get 
+the Autocorrelation Function (ACF) and the Partial Autocorrelation Function (PACF)
+
+# Autocorrelation Function (ACF) and Partial Autocorrelation Function (PACF)
+This functions will tell us how correlated are the observations in the time series.
+
+fig = plt.figure(figsize=(12,8))
+ax1 = fig.add_subplot(211)
+fig = sm.graphics.tsa.plot_acf(train_dataset['pm2.5'], lags=40, ax=ax1)
+ax2 = fig.add_subplot(212)
+fig = sm.graphics.tsa.plot_pacf(train_dataset['pm2.5'], lags=40, ax=ax2)
+
+from statsmodels.tsa.arima_model import ARIMA
+model = ARIMA(train_dataset, order=(3,0,0))
+model_fit = model.fit(disp=0)
+print(model_fit.summary())
+
+residuals = DataFrame(model_fit.resid)
+residuals.plot()
+plt.show()
+
+residuals.plot(kind='kde')
+plt.xlim([-100.0, 100.0])
+plt.show()
+
+print(residuals.describe())
+
+## Get some predictions
+
+test = test_dataset.values
+
+X = train_dataset.values
+size = len(X)
+history = [x for x in X]
+
+predictions = list()
+for t in range(len(test)):
+	model = ARIMA(history, order=(3,0,0))
+	model_fit = model.fit(disp=0)
+	output = model_fit.forecast()
+	yhat = output[0]
+	predictions.append(yhat)
+	obs = test[t]
+	history.append(obs)
+	print('predicted=%f, expected=%f' % (yhat, obs))
+error = mean_squared_error(test, predictions)
+print('Test MSE: %.3f' % error)
+
+
+plt.figure(figsize=(20,7))
+plt.plot(test, label='Test')
+plt.plot(predictions, label='Predictions', color='red')
+plt.legend(prop={'size': 15})
+plt.show()
+
+rmse = error
+rmse
+
+#Evaluation
+#Calculate the Mean Squared Error to obtain the accuracy
+
+error = mean_squared_error(test, predictions)
+print('Test Mean Squared Error(MSE): %.3f' % error)
+
+#Neural Networks
+#Recurrent Neural Networks (RNN)
+
+last_weeks.head()
+
+train_dataset = last_weeks['2014-12': '2014-12-29']
+test_dataset = last_weeks['2014-12-30': '2014']
+
+#To have a better accuracy in our network we need to first normalize the values of our data.
+
+from sklearn.preprocessing import MinMaxScaler
+normalize = MinMaxScaler(feature_range = (0, 1))
+train_dataset = normalize.fit_transform(train_dataset)
+# Now our dataset is ranged between 0 and 1.
+
+plt.plot(train_dataset)
+
+train_dataset.shape
+
+#The Recurrent Neural Networks predict the new observation based on X lagged observations. 
+#For our case, lets try with 168 lagged observations what means around one week to get a new prediction.
+
+X_train = []
+y_train = []
+for i in range(168, train_dataset.shape[0]):
+    X_train.append(train_dataset[i-168:i, 0])
+    y_train.append(train_dataset[i, 0])
+X_train, y_train = np.array(X_train), np.array(y_train)
+
+X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+
+#Now it's time to create the architecture of the Neural Network! We are going to use Keras, 
+#which is a popular framework that is made on top of TensorFlow (the neural network library published by Google). 
+
+# The architecture of the network
+
+Our network is made by LSTM layers, it contains five networks with 100x200x300x200x100 networks. 
+#I used dropout to improve accuracy and reduce the loss after epoch (quantas vezes rodam todos os dados de entrada).
+# batch são os agrupamentos de dados de entrada
+
+# Importing the Keras libraries and packages
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import Dropout
+
+# Initialising the RNN
+regressor = Sequential()
+
+# Adding the first LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 100, return_sequences = True, input_shape = (X_train.shape[1], 1)))
+regressor.add(Dropout(0.2))
+
+# Adding a second LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 200, return_sequences = True))
+regressor.add(Dropout(0.2))
+
+# Adding a third LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 300, return_sequences = True))
+regressor.add(Dropout(0.2))
+
+# Adding a fourth LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 200, return_sequences = True))
+regressor.add(Dropout(0.2))
+
+
+
+# Adding a fiveth LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 100))
+regressor.add(Dropout(0.2))
+
+# Adding the output layer
+regressor.add(Dense(units = 1))
+
+# Compiling the RNN
+regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
+
+#Now the model is fitted to our train dataset the model and it's time to create the predictions.
+
+inputs = last_weeks[len(last_weeks) - len(test_dataset) - 168 :].values
+inputs = inputs.reshape(-1,1)
+inputs = normalize.transform(inputs)
+
+X_test = []
+for i in range(168, len(inputs)):
+    X_test.append(inputs[i-168:i, 0])
+    
+X_test = np.array(X_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+predicted = regressor.predict(X_test)
+predicted = normalize.inverse_transform(predicted)
+
+# Visualising the results
+plt.figure(figsize=(20,7))
+plt.plot(test_dataset['pm2.5'].values, color = 'red', label = 'Real Values')
+plt.plot(predicted, color = 'blue', label = 'Predicted Values')
+plt.title('Contamination prediction')
+plt.xlabel('Time')
+plt.ylabel('PM2.5')
+plt.legend()
+plt.show()
+
+regressor.fit(X_train, y_train, epochs = 100, batch_size = 32)
+
+# It looks that the predictions suit well to the real values
+
+mean_squared_error(test_dataset['pm2.5'].values, predicted)
+
+
