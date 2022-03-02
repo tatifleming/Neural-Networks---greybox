@@ -1,0 +1,48 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+
+#Importando 201
+df1 = pd.read_csv('tls201_part01.csv', sep=';', header=0, index_col=False)
+df2 = pd.read_csv('tls201_part02.csv', sep=';', header=0, index_col=False)
+df3 = pd.read_csv('tls201_part02.csv', sep=';', header=0, index_col=False)
+
+df_201 = pd.concat([df1, df2, df3])
+
+df_201 = df_201.drop(['appln_nr', 'appln_filing_date', 'appln_filing_year', 'appln_nr_epodoc', 'appln_nr_original', 'internat_appln_id', 'earliest_filing_date', 
+'earliest_filing_year', 'earliest_filing_id', 'earliest_publn_date', 
+'earliest_pat_publn_id', 'docdb_family_id', 'inpadoc_family_id'], axis=1)
+
+del [df1, df2, df3]
+
+#Importando 209
+
+df4 =
+df5 =
+
+df_209_temp = pd.concat([df4, df5])
+df_209_temp = df_209_temp.drop(['ipc_version', 'ipc_value', 'ipc_position', 'ipc_gener_auth'])
+
+# Filtro WIPO IA CEIS
+df_wipo = pd.read_csv('resultados_patentes.csv')
+df_209 = pd.merge(df_wipo, df_209_temp, how = 'inner', on = 'ipc_class_symbol')
+
+#Importando 206
+
+df6 =
+df7 =
+df_206 = pd.concat([df6, df7])
+
+#Importando 207
+
+
+#Importando 211
+
+#Importando 212
+
+#Importando Caixa Preta
