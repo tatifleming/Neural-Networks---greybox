@@ -1,3 +1,6 @@
+##alterações
+# passos da filtragem
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,43 +22,56 @@ df1 = pd.read_csv('tls201_part01.csv', sep=';', header=0, index_col=False)
 df2 = pd.read_csv('tls201_part02.csv', sep=';', header=0, index_col=False)
 df3 = pd.read_csv('tls201_part02.csv', sep=';', header=0, index_col=False)
 
-df_201 = pd.concat([df1, df2, df3])
+df201 = pd.concat([df1, df2, df3])
 
-df_201 = df_201.drop(['appln_nr', 'appln_filing_date', 'appln_filing_year', 'appln_nr_epodoc', 'appln_nr_original', 'internat_appln_id', 'earliest_filing_date', 
-'earliest_filing_year', 'earliest_filing_id', 'earliest_publn_date', 
-'earliest_pat_publn_id', 'docdb_family_id', 'inpadoc_family_id'], axis=1)
+df201 = df_201.drop(['appln_nr','appln_nr_epodoc'], axis=1)
 
 del [df1, df2, df3]
 
+#1) removing artificial patents
+dfart = df201.dropna(subset=['appln_nr_original'])
+
+## contando quantas W (PCT)
+sum(dfart['appln_kind'].str.strip() == 'W')
+
+## alterando tipo de patente para string
+dfart['appln_kind'] = dfart['appln_kind'].str.strip()
+
+#2) selecting only appln_kind = A & W
+dfkind = dfart[dfart['appln_kind'].isin(['A', 'W'])]
+
+##changing type of the column earliest filing date
+dfkind['earliest_filing_date'] = pd.to_datetime(dfkind['earliest_filing_date'], format="%Y-%m-%d")
+## test
+np.min(dfkind['earliest_filing_date'])
+
+# 3) prioridade de famílias
+dfprior1 = dfkind[dfkind["docdb_family_id"]].groupby("earliest_filing_date", group_keys=False).apply(lambda x: x[x['appln_id'].eq(x['appln_id'].min())])
+
+# 4) selecionar anos que nos são de interesse
+after_2000_df = df_dois[(df_dois['earliest_publn_year'] >= 2000) & (~df_dois['earliest_publn_year'].isin([9999, 2020]))]
+
 #Importando 209
+#Importando 206
+#Importando 207
 
-df4 =
-df5 =
+df209_temp = pd.concat([df4, df5])
+df209_temp = df_209_temp.drop(['ipc_version', 'ipc_value', 'ipc_position', 'ipc_gener_auth'])
 
-df_209_temp = pd.concat([df4, df5])
-df_209_temp = df_209_temp.drop(['ipc_version', 'ipc_value', 'ipc_position', 'ipc_gener_auth'])
-
-# Filtro WIPO IA CEIS
+# 5) Filtro WIPO IA CEIS
 df_wipo = pd.read_csv('resultados_patentes.csv')
 df_209 = pd.merge(df_wipo, df_209_temp, how = 'inner', on = 'ipc_class_symbol')
 
-#Importando 206
+# 6) Selecionar apenas aplicantes = inventores
+# está em spark
+df207_ia = df207_invt.where((col(['applt_seq_nr', 'invt_seq_nr']) > 0))))
+df207_ia.repartition(1).write.option("header", "true").csv("patstat")
 
-df6 =
-df7 =
-df_206 = pd.concat([df6, df7])
-
-#Importando 207
-
-
-#Importando 211
-
-#Importando 212
-
-after_2000_df = df_dois[(df_dois['earliest_publn_year'] >= 2000) & (~df_dois['earliest_publn_year'].isin([9999, 2020]))]
+# 7) selecionar apenas as patentes que estão no nível internacional
+dfinternacional = df[df['int_phase']=='Y']
+df207_ia_int.repartition(1).write.option("header", "true").csv("patstat_int")   
 
 #Importando Caixa Preta
-
 
 ##########################################
 class SensorDataset(Dataset):
