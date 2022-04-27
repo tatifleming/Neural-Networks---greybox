@@ -46,7 +46,7 @@ dfkind['earliest_filing_date'] = pd.to_datetime(dfkind['earliest_filing_date'], 
 np.min(dfkind['earliest_filing_date'])
 
 # 3) prioridade de famílias
-dfprior1 = dfkind[dfkind["docdb_family_id"]].groupby("earliest_filing_date", group_keys=False).apply(lambda x: x[x['appln_id'].eq(x['appln_id'].min())])
+df_teste.groupby('docdb_family_id').apply(lambda x: x.iloc[np.argmin(x.earliest_filing_date),:])
 
 # 4) selecionar anos que nos são de interesse
 after_2000_df = df_dois[(df_dois['earliest_publn_year'] >= 2000) & (~df_dois['earliest_publn_year'].isin([9999, 2020]))]
