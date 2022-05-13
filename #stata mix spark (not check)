@@ -1,0 +1,619 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from torch.utils.data import Dataset, DataLoader
+import os
+import torch
+import random
+from joblib import dump
+from icecream import ic
+
+
+#Importando 201
+df1 = pd.read_csv('tls201_part01.csv', sep=';', header=0, index_col=False)
+df2 = pd.read_csv('tls201_part02.csv', sep=';', header=0, index_col=False)
+df3 = pd.read_csv('tls201_part02.csv', sep=';', header=0, index_col=False)
+
+df201 = pd.concat([df1, df2, df3])
+
+df201 = df_201.drop(['appln_nr','appln_nr_epodoc'], axis=1)
+
+del [df1, df2, df3]
+
+#1) removing artificial patents
+dfart2 = df201.dropna(subset=['appln_nr_original'])
+
+dfart = dfart2[(dfart2['appln_id'] >= 900000000)]
+
+## contando quantos W (PCT)
+sum(dfart['appln_kind'].str.strip() == 'W')
+
+## alterando tipo de patente para string
+dfart['appln_kind'] = dfart['appln_kind'].str.strip()
+
+#2) selecting only appln_kind = A & W
+dfkind = dfart[dfart['appln_kind'].isin(['A', 'W'])]
+
+##changing type of the column earliest filing date
+dfkind['earliest_filing_date'] = pd.to_datetime(dfkind['earliest_filing_date'], format="%Y-%m-%d")
+## test
+np.min(dfkind['earliest_filing_date'])
+
+# 3) FILTRAR FAMÍLIAS
+
+#Identificação das famílias (VERIFICAR SE ESTÁ CORRETO DO STATA PARA PYTHON)
+#sort docdb_family_id
+#quietly by docdb_family_id: gen dup = cond(_N==1,0,_n)
+#Base de dados que identifica as famílias. 
+#save "docdbfamily.dta"
+#tabulate earliest_filing_year
+
+docdbfiltrada = df_teste.groupby('docdb_family_id').apply(lambda x: x.iloc[np.argmin(x.earliest_filing_date),:])
+# filtro antigo
+#dfprior = df[df["docdb_family_id"]].groupby("earliest_filing_date", group_keys=False).apply(lambda x: x[x['appln_id'].eq(x['appln_id'].min())])
+
+#Importando 209
+df209_temp = pd.concat([df4, df5])
+df209_temp = df_209_temp.drop(['ipc_version', 'ipc_value', 'ipc_position', 'ipc_gener_auth'])
+
+# merge docdbfiltrada (201) com 209 antes de passar pelo filtro Patentscope
+
+generate id=0
+replace id=1 if _merge==1 
+replace id=2 if _merge==2 
+replace id=3 if _merge==3
+drop _merge
+sort id
+*id 1 not matched from master (201 ou docdobfiltrada), 
+*id 2 not matched from using (209)
+*id = 2 são appln_id com CPCs que não têm identificação das demais variáveis, inclusive da família (afinal, elas não estão na base original).
+*id 3 matched
+
+drop if id!=3
+drop id
+
+sort docdb_family_id dup
+
+save "merge.dta"
+# merge da docdbfamilyfiltrada com 209 ainda sem filtro, criando condicionais id, mas acaba excluindo as que não deram match. Não sei se é necessário fazer as condicionais aqui. Talvez um merge direto
+
+
+###### FILTRO WIPO
+# 4) Filtro WIPO IA CEIS
+
+     mergefiltrada = merge_W.withColumn("ipc_class_symbol",merge.ipc_class_symbol.cast(StringType()))
+
+
+     mergefiltrada2 = mergefiltrada.withColumn('ipc_class_symbol', regexp_replace('ipc_class_symbol', ' ', ''))
+
+CEIS_IA_list = ["A61K39/00", "G06N5/04", "G06F15/18", "C12Q1/6883", "G16H50/20", "G06F17/24", "G06N99/00",
+               "A61B5/00", "G06N20/00", "G06N3/08", "C12Q1/68", "G16B40/20", "G06F19/00", "G06K9/62",
+               "G06F19/28", "G16H50/70", "G16H20/60", "G16B20/00", "G06F17/10", "G16H40/20", "G06F19/24",
+               "G06F19/18", "G06N7/08", "A61K35/17", "G06N3/12", "G06T7/10", "G06F9/45", "G01N33/569",
+               "G01N33/48", "G06E1/00", "G06K9/36", "G10L25/66","G06T7/41","H04L12/24","A61B1/00","A61K35/13",
+               "G06N3/02","G06F19/12", "G16B40/30", "B60W30/14", "C07K14/705", "G06T7/11", "G05B13/02",
+               "G16B15/30", "G06F19/10", "A61B5/055", "G06K9/00", "G16B40/00", "G16B20/50", "A61K31/5415",
+               "G01N33/53", "G16H30/40", "A61B90/00", "G05B15/00", "C12P19/34", "G06F19/22", "G01N33/18",
+               "A61K31/137", "G06T7/00", "G16H10/20", "G06N3/04", "C12Q1/6869", "C12Q1/00", "G01N1/30",
+               "G01N33/50", "C12Q1/06", "A61K35/15", "G05B19/418", "G01N33/68", "C40B60/10", "G06F9/455",
+               "G06Q50/00", "G01N33/574", "G16B15/00", "A61B5/11", "A61B5/0402", "C12Q1/6886", "G06N3/00",
+               "G06F19/16", "G06Q50/22", "G06N3/06", "G16B25/10", "B01L3/00", "G06F17/50", "G06Q40/06",
+               "C07K1/00", "C12N15/10", "G06T11/00", "E21B43/26", "G06F3/048", "G10L15/08", "G16B50/40",
+               "G06F19/26", "G06G7/58", "G10L15/14", "A61K38/16", "C12M1/34", "A61B5/1455", "G01N21/64",
+               "A61K45/00", "G06F17/28", "G01N33/00", "G06Q50/24", "A61B5/16", "G16H30/20", "A61B5/145",
+               "G01N30/06", "G06N20/20", "G09B5/04", "G16H50/50", "A61B5/026", "G06N5/02", "G01N21/3577",
+               "A61B3/10", "A61B5/0205", "C40B40/06", "G06F17/00","A61B5/04","A61B5/01","C04B20/00","G06F17/11",
+               "G06N20/10","G01N33/487","A61B5/0476", "G16H20/10","C12N15/11","G06N3/63","G06T1/00","G06F17/27",
+               "B25J9/16","G06N5/00","C12Q1/37","G06F13/28", "G16B30/00","A61B6/00","C12N15/09","G06Q50/28",
+               "B01J19/00", "A61B5/08", "A61P35/00", "C12Q1/04", "H04L29/08", "C07K14/605", "E03F7/00",
+               "A61N5/10", "C40B20/00", "G16H10/60", "A61B5/02", "G06T7/593", "C07K1/04", "G01N15/12",
+               "G16B10/00", "G06F17/30", "A61K39/395", "G06F17/18", "E21B41/00", "G02B21/36","G06N3/10",
+               "G16B20/10","G06K9/46","C12Q1/02","G10L15/26","C12Q1/34","C40B30/04","E21B47/12","G10L13/033",
+               "G16H50/30","G01N15/14","G06N3/063","C40B50/00","B62D15/02","G10L15/01","G01N33/564","C12N15/67",
+               "A61B8/08","A61B5/0245","G10L15/02","G06F17/16","G06F9/50","C40B50/02","G06G7/48","C07K7/00",
+               "G01N30/72","G01N33/94","G06F21/62","G06N7/02","A61K31/7088", "G06T5/00", "G06F15/16",
+               "A61K38/39", "G06F7/02", "G06F16/00", "A61N1/36", "H04N7/01", "H04L29/06", "G06Q30/02",
+               "G06F17/22", "G05B13/04", "C12N5/00", "G16H50/80", "G01N33/92", "G06T15/08","A61C19/04",
+               "G09B23/28", "H04R3/00", "H04R25/00", "G10L15/065", "G01V11/00", "A63F9/24", "B62D29/04",
+               "H04L9/00", "C07K14/72", "C12Q1/689", "G05B17/02", "G06F17/20", "G06F21/56", "A01K67/027",
+               "G06N7/00", "B25J9/00", "G06F8/33", "A61B5/05", "G01N27/447", "C12Q1/18", "C07K14/725",
+               "A61B5/0478", "G06K9/60", "G16B20/20", "G06T1/40", "C07K14/00", "G10L17/26", "G05D1/02",
+               "C12N1/11", "G01N30/86", "G06F9/445", "G06F8/71", "G01N1/40", "G06F21/50", "G06F21/64",
+               "C12Q1/26", "G06Q10/00", "G05B23/02", "G01N30/16", "G06Q50/30", "C12N9/22", "A61K38/17",
+               "C07K1/16", "H04W4/44", "A61B10/00", "A63F13/67", "A61B10/02", "G10L15/16","G06T5/50",
+               "G06T3/40", "A61K35/12", "G06K9/66", "A61B6/03", "A61K38/00", "G16B99/00", "A61B3/14",
+               "G06Q10/06", "H02J3/16", "G01N33/497", "G01C21/36", "G06F16/28", "G01R31/367", "G06F30/398",
+               "G10L15/06", "G16H30/00", "G16B20/30", "G06F3/01", "C12N9/12", "G16C20/70", "A61B3/113",
+               "G01R33/565", "A61K31/4184", "E21B12/02", "G06F40/279", "G06F8/40", "A61B34/32", "A61B5/0484",
+               "G01V1/48", "A61B5/1495", "A61B8/00", "G10L17/00", "G01N21/95", "G06F3/03", "G01N33/566",
+               "G16H20/00", "G05D1/00", "A61N1/05", "G09B21/00", "H04L9/32", "E21B47/00", "G06F11/36",
+               "H04W16/22", "G06K9/40", "G01S7/40", "G03F1/36", "G10L13/08", "B64D15/20", "G06K9/20",
+               "G06T7/30", "A61B5/046", "G06K9/32", "A61B3/00", "A61B5/024", "C07K14/435", "C07K14/47",
+               "A61B5/0444", "G16H20/70", "G06T7/73", "G06F11/30", "G09B19/04", "H04N19/00", "G06T3/00",
+               "A01K1/03", "A61B5/021", "G06F16/20", "G06Q40/02", "A61B34/20", "A63B71/06", "A61B34/00",
+               "G16B40/10", "G06F8/30", "C12N15/12", "G01N21/93", "A61B5/12", "G06T7/20", "G06T1/20",
+               "G16H20/40","A61B5/053","G10L25/63","G01N33/573","A01K29/00","A63F13/75", "B60W60/00",
+               "G01N21/25", "G01M15/14", "G06F16/50", "A61K39/40", "G10L11/00", "G06T7/246", "G01N21/00",
+               "G06K9/52", "A61B34/10", "G16H40/67", "G01N33/52", "G01N1/28", "G08B13/196", "G06F9/44",
+               "G06F3/0354", "G06F17/40", "A61B34/30", "A61B5/0452", "G06F7/00", "H04N19/14", "G01C21/32",
+               "C12Q1/6809", "G10L15/22", "G06F11/00", "A61B5/15", "A23N7/02", "G03F7/20", "G10L17/02",
+               "C12N5/0793", "A61B5/346", "G06F30/23", "G06F8/36", "B60W30/10", "H04N13/02", "G10L15/18",
+               "G01V99/00", "G06T17/20", "G06F21/00", "B64C39/02", "C07K1/12", "H04B1/38", "A61K38/18",
+               "G06T11/60", "B25J5/00", "G16H40/63", "E21B44/00", "G06F9/54", "G16H40/60", "G16B5/10",
+               "G01N21/88", "A01B79/00", "G01V3/30", "G01N33/543", "G16H10/40","A01K67/00", "G06F16/34",
+               "A47C27/08", "H01L21/66", "G01S17/89", "G06Q10/04", "G02B13/06", "A61K31/497", "C07H21/04",
+               "G06F40/18", "G06F21/55", "G01N27/02", "A61K38/04", "C07K9/00", "H04W28/26", "H04B7/185",
+               "G16H15/00", "G01N33/58", "G06K9/80", "B01L99/00", "A61B17/32", "G01N33/28", "G06T7/13",
+               "A61B5/319", "G16B35/00", "A61B5/044", "C40B30/00", "C12N5/22", "G05B19/4099", "A61C7/00",
+               "G06F21/34", "G10L21/003", "G16C20/50", "G10L17/04", "G01S7/41", "A01H1/02", "G05B19/04",
+               "G06F15/173", "C12N15/85", "G02B27/01", "G06K9/34", "G06F40/00", "C12Q1/6813", "G06T7/32",
+               "A61B5/0432", "E21B43/12", "A61P43/00", "G08G1/01", "G06F16/35", "A61Q5/10", "H04L1/00",
+               "H04W4/46", "G16B15/20", "G10L25/60", "H04N21/466", "G01R33/54", "G06Q20/22", "G06F16/901",
+               "A01N63/00","G06Q40/00", "G01N23/00", "A61B5/352", "C07K14/07", "G06F40/30", "G06F12/08",
+               "G06T7/50", "G06T7/80", "G06F16/65", "G16H50/00", "G16B45/00", "A61B5/103", "A61B1/06",
+               "G16B50/30", "B60W40/12", "C12Q1/70", "G06T7/174", "G16B50/00", "G06F19/20", "G06F15/00",
+               "A61K31/551", "C12N15/00", "B60W40/02", "A61K31/277", "G01N33/84", "C07K16/00", "B29C64/386",
+               "A61B5/0456", "A61K35/66", "G01N33/74", "C12N5/07", "C12M1/00", "A61B5/1477", "G09B11/00",
+               "G01N33/15", "A61B5/029", "C40B30/02", "C12N15/113", "C12N15/89", "G01N33/483", "C12Q1/6804",
+               "G06Q10/08", "C07K14/63", "G06F16/215", "G01N33/02", "A61B5/0295", "G01N15/02", "G01R33/46",
+               "G16B30/10", "G01N31/00", "G01N33/96", "G06K9/68", "C40B40/10", "E21B47/26", "G10L13/04",
+               "G02B21/00", "G05B1/00","B25J19/02", "B81B1/00", "G10L15/197", "E21B47/002", "C40B20/04",
+               "C07K7/04", "A61B5/06", "G06F15/163", "G06F9/06", "G06K9/38", "A61K45/06", "B23K9/095",
+               "G06E3/00", "G06T19/20", "A23K1/17", "H04R1/08", "G06K9/42", "G06T7/60", "A61B1/31",
+               "G06F9/48", "C08L67/02", "C12Q1/48", "G01N21/62", "C40B40/08", "G06F17/21", "G06F9/28",
+               "G01N33/49", "C12N5/0783", "G16B5/20", "H04L25/03", "C07K14/78", "A61B6/02", "G06F11/14",
+               "A61K49/00", "H04L5/00", "H04L12/16", "A63F13/46","C12P7/42", "G01N1/02", "G01N9/36",
+               "A61P3/10", "C07K7/08", "G16B5/00", "C12N5/16", "B60W30/18", "G06F17/60", "G06F30/27",
+               "G06Q10/10", "G06F3/038", "G06K9/48", "G16C20/20", "G01R33/56", "E21B10/00", "G06F40/20",
+               "G01V1/50", "G16B50/10", "G06F3/0482", "B60W40/08", "B82Y5/00", "G06F8/75","H04W24/06",
+               "G01N21/31","G01N33/72","G11C11/413","G05D1/10","C07K14/445","G10L15/07", "A61N1/08",
+               "G16H20/30", "A61N1/372", "G10L19/00", "G06F11/34", "A61B5/0488", "H04L12/26", "G06F3/14",
+               "A01K11/00", "A61B5/1464", "C12N15/52","G01N27/62", "G06T7/579", "A01K45/00", "G06F19/14",
+               "G06F16/53", "G10L15/20","G10L21/02","H04N19/119","G06Q10/02","G01N21/35","A61B8/06","G01N1/06",
+               "E21B43/00", "A63F13/47","G06K9/78","G06F16/9535", "A01G7/00","G06F40/103", "C07K14/48", "C12N5/0797",
+               "G06G7/60", "G06F8/77", "G06F16/958", "B60W30/08", "G06F3/16", "G06F40/205", "E21B47/09", "F41H13/00",
+               "G06T15/04","G11B27/00", "G01N15/10","A61K38/19","C07K1/36","G06Q50/04","C12N5/073","G10L15/00","H04B1/18",
+               "C12N15/74", "G01N35/00", "A63F13/795", "H01J49/00", "G01N21/956", "G01N33/70", "G09B19/00","A61B5/113",
+               "G01N25/04", "A01C7/10","G06T11/20","B25J13/06","G06K9/03","G01V3/34","G01N33/547","G06Q30/06","G01S13/95",
+               "A61F9/00","G06F40/40","A61K36/185","G06Q50/10","G01N33/567","G06F40/12","G01N27/07", "A61P31/12","G06T5/20",
+               "G10L25/00","C12N5/077","B03C1/32","G06G7/00","G06K9/54","G06F21/32","G06T7/55","A61M1/36","G01S13/86","A61B5/24",
+               "G06T17/00","G06F8/41","G08G1/052","A01K61/95","A61P25/14","G10L15/25","H04W4/38","A61B1/313","A61K9/20","G06T7/143",
+               "G06F9/38","G10L25/30","H04N21/442","G10L11/02","G09B5/00","G06F16/9032","A01N65/00","G01N23/05","A61B5/364","G06F3/0346",
+               "A61B8/12","G06F16/906","G06K9/50","A61B1/227","G16C20/30","C40B20/06","G06Q90/00","G06T7/136","C12N15/82","G16H70/60",
+               "G11C17/00", "C12Q1/6881","A61K31/4704","C12Q1/6806","C40B20/08","G06F40/10","C12N1/20","B33Y50/00","A61P25/22", "A61K39/02",
+               "G06Q30/00","G01J3/28", "A61K38/10", "A61B5/155", "G09B19/06", "C12N15/62", "C12M3/00", "G16B25/00", "G06F8/35", "C40B60/04",
+               "G16Y30/00", "C07K16/28", "C07K14/645", "A61N1/00", "G01R33/465", "G06K9/64", "G06N3/067", "B60W30/00", "G05B17/00", "E21B47/13",
+               "G10L15/183", "G06Q20/40", "G06T5/40", "G06F21/57", "A61K48/00", "B23K31/12", "G06F16/33", "C12M1/36", "G01N23/04", "H01L27/118",
+               "A61B5/117", "G06T17/10", "G06T9/00", "A61B5/048", "G16B35/20", "B60W40/06", "H04B17/309", "A61B5/083", "C12Q1/6816", "G01N33/6896",
+               "B01D15/08", "A63F13/49", "G16H20/17", "C12N5/074", "G06Q50/02", "C12N5/06", "A61K31/7105", "C12Q1/6888", "C07B61/00", "A61K39/12",
+               "B82Y10/00", "C07K14/46", "B60W30/095", "G06Q40/08", "H04W16/14", "G01S13/04", "A61B90/20", "G10L15/10", "G06K9/72", "H01J49/26",
+               "A63F13/422", "A61N1/37", "A61N1/365", "A61B9/00","G10L19/018","G06F11/32","H04L12/851","H04N19/20","G06T7/62","E21B49/00","A61B5/087",
+               "G12Q1/68","G01N30/02","G06T1/60", "A61B1/04","A61M21/02", "A63F13/86", "G06F16/58", "H03M13/39", "G10L17/18", "C04B40/02", "G16B20/40",
+               "H04N19/147", "G06F3/0484", "A61F2/30", "G01C21/20", "A61B5/0482", "G06T7/70", "G01B11/24", "G06F40/166", "A61B5/0472", "F16K17/02", "G06T15/50",
+               "C12Q1/6827", "G01N25/00", "G16B25/30", "G10L21/00", "A61K38/20", "A63F13/35", "G03F1/80", "A61B18/00", "B25J13/00", "C07K16/18", "C12N5/075",
+               "G03F1/84", "G01S13/50", "G01N25/48", "G01F17/00", "G06F12/0811", "H04W12/00", "G01S7/04", "G06F40/247", "A61P25/00", "B07C5/00", "G16H10/00","H03K19/00",
+               "G06F40/274","G06F21/60", "G06F40/126","A61P31/14", "G06Q30/08", "G10L15/187", "C12N5/071", "C07K14/195", "A61B5/327","B42D25/23","G06F16/60","G16H80/00",
+               "G06N10/00","G01S13/89","A61B7/00","A61N1/04","B82Y15/00","A61B5/0464","G06G7/66","A61P25/16","G06F9/00","A61K8/02","G03F1/70","H04W4/02","A61B1/317",
+               "G01N15/06","G09B7/06","G09B7/00","G01T1/24","A61B5/366","G06F3/044","A63F13/42","G10L17/22","G10L25/24","G06N3/088","B60W50/08","C40B30/10","A61P25/28",
+               "G01S17/02","G01N21/55","C40B60/12","A61B5/157","A61F2/02","A61K51/00","A61B5/0496","G16H70/40","A61P37/02","C07K14/655","H04L12/00","A61B18/14","E21B47/085",
+               "G06F21/31","H04W4/00","G06N7/06","A61K31/437","A61K31/4245","B29C67/00","G06Q50/20","G01N23/06","H01L21/768","G06T19/00","A61B5/0408","G01C21/26","G01N1/44",
+               "G01P15/00","A61B8/13","H04W12/06","G01R33/58","G01N1/34","C12Q1/6825","A63F13/798","C12N5/10","A61G99/00","G01V1/00","H02J3/38","G01K9/00","G06F13/16","G06F119/18",
+               "B25J19/00","H04N7/18","A63B24/00","B60W40/04","A61F2/68","G06F1/16","G01N30/00","A61B5/107","H04N21/234","C12N1/00","G10L15/24","G01V1/44","G10H1/00","G01N25/72",
+               "G10L21/0272","A61N5/00","H04N19/176","G06F16/55","A61B19/00","G01N1/04","A61N5/01","A63F13/79","G01C11/00","A61B5/0468","F16K17/40","G10L19/04","C12Q1/6858","A61B34/35",
+               "G01R27/02","C07K4/00","B62D57/032","A61G7/057","G06F16/70","G06F16/29","G06F12/0862","H04W24/02","G01S7/06","A61K31/52","B09B3/00","A61B5/30","G06F30/30","C07K14/005",
+               "G06K9/44","H04L1/18","A61B17/00","A61M1/16","G16C10/00","G08G1/16","G01S13/931","A61B7/04","A61F5/56","G06Q50/18","G06F16/21","G10L13/00","A61M1/34","F04B49/06","G06N7/04",
+               "G05B19/05","G01B21/20","G01N5/04","B60W20/12","G01N27/49","G01N33/561","C12Q1/6853","A61G12/00","A61P37/00","C40B60/00","G01N33/24","G06T7/194","G06F21/45","A61P25/24",
+               "F24F3/048","A61K36/06","G08B21/04","H04N5/93","G01T1/16","C07H21/02","G01N1/38","G06F17/14","H04B17/318","G16H20/13","H04M3/51","B25J19/06","G01R33/561","H04N5/77","G06F9/24",
+               "H01L21/67","G06F11/07","H04N21/63","H04R29/00","G02B23/24","C40B40/02","G10L21/0308","H03M13/41","H04N19/96","H04N19/88","A61F2/46","G01C11/06","G06T15/06","G01R31/00","G06F8/72",
+               "G01V3/38","B60R21/0134","G06F12/0897","G08B21/02","G01S7/18","A61K31/36","A61B5/271","A61N1/362","H04N5/225","H04W24/08","H04N19/172","G10L21/013","G10L17/24","G10L15/30","G06T7/168",
+               "A61K35/74","H05G1/28","G06F9/30","G01R33/10","G01N37/00","G01N23/20","G01N33/554","H04N5/232","G01S11/04","C07K14/82","A61B5/332","G01N15/00","G01N3/00","A61P31/04","B25J19/04",
+               "A61P3/04","G06F16/78","A61B8/14","G16C20/80","H04N19/46","H04N19/182","A61M31/00""G06Q50/16","G01V5/04","B60W50/00","G06F12/126","G16H70/20","G01S7/20","A61B5/308","G06F7/60","H04W12/12",
+               "H04W72/04","G01S17/931","H04H60/31","C12N5/02","A61K9/00","H05G1/64","A61B5/361","C12N15/65","H04B17/391","G01N9/00","A61F2/72","H04N19/85","B60R21/015","G01S7/22","A61N1/39","C12N15/867",
+               "H01Q21/00","C12N5/095","H04N21/81","G06T15/70","G01N35/10","H04N5/262","G02B21/34","G01C22/00","A61B5/0285","A61B34/37","G01M17/00","H04M9/00"
+               ]
+
+    # filtro complexo economico industrial da saúde Acordo de Paris/ PCT
+     mergefiltrada3 = mergefiltrada2.where(col("ipc_class_symbol").isin(CEIS_IA_list))
+
+# Criar a coluna id a partir da mergefiltrada3
+# fazer condicional, se o valor existir na 209, mas não existir na lista, então preencher com 1 na coluna id
+# se o valor existir na lista e não existir na 209, preencher com 2
+# se o valor existir em ambos, preencher com 3
+# salvar o novo df = merge_2
+# excluir valores com id = 1 e salvar = notmachmaster
+# excluir valores com id = 1 & id = 2 e salvar = teste_2
+
+# a título de identificação nas rotinas da Camila:
+## merge_2 (id = 1; id=2; id= 3)
+## notmatchedmaster (id = 2 e id =3)
+## teste_2 (só patentes id=3)
+
+# 5) FILTRAR PRIORITÁRIAS (a partir da mergefiltrada 3)
+
+format appln_id %19.0f 
+format earliest_filing_id %19.0f 
+*Opções para proteção da invenção via patentes (passos retirados do Data Catalog)
+**Depósito de uma patente internacional ou PCT (op1)
+**Depósito no escritório nacional e, pela convenção de Paris, em outros escritórios (op2)
+**Vários depósitos simultâneos (op3)
+
+*op1. Se houver um pedido PCT que tenha sido apresentado na data de pedido mais antiga, 
+**então o APPLN_ID deste pedido PCT é considerado o EARLIEST_FILING_ID. 
+
+# Criar uma coluna chamada op1
+#A PCT não necessariamente é a mais antiga. O depositante pode ter solicitado uma patente, antes, no escritório nacional, por exemplo. 
+
+generate op1=0
+replace op1=1 if appln_id==earliest_filing_id
+
+sort docdb_family_id earliest_filing_year dup op1
+
+save "prioritarias_1.dta", replace
+
+*op2. Caso contrário: Se houver 1 ou mais prioridades da convenção de Paris que foram arquivadas na data de inscrição mais antiga, 
+*a prioridade da convenção de Paris com o menor APPLN_ID será considerada o EARLIEST_FILING_ID.
+**O passo 2, portanto, poderia identificar se há duas earliest_filing_id para uma mesma família. 
+***Se houver, o patstat não identificou a prioridade da convenção de Paris com o menor APPLN_ID entre as arquivadas na data de inscrição mais antiga. 
+*NÃO HÁ NENHUMA FAMÍLIA COM MAIS DE UMA PATENTE SENDO IDENTIFICADA COM op1=1, portanto, o passo 1 contempla o passo 2.
+
+**O passo 3, portanto, identifica a mais antiga com menor appln_id, que não necessariamente é a prioritária.
+***op3=. a prioritária não é a mais antiga.
+***appln_id!=op3 s prioritária não o menor appln_id da mais antiga. 
+
+*op3. O pedido que foi apresentado na data mais antiga com o menor APPLN_ID 
+*appln_filing_date porque, na grande maioria das vezes, o earliest_filing_date é o mesmo para todas as patentes de uma família - de modo que não conseguimos identificar a mais antiga. 
+
+
+# df201_date = df201.withColumn("earliest_filing_date", to_date(col("earliest_filing_date"), "yyyy-mm-dd"))
+
+#schema_family = StructType.fromJson(df201_date.schema.jsonValue())
+
+#def fun_2(df):
+
+#    df_1 = df.iloc[np.where(df.earliest_filing_date == np.min(df.earliest_filing_date))[0],:]
+#
+#     df_2 = df_1.iloc[np.where(df_1.appln_id == np.min(df_1.appln_id))[0],:]
+
+#     return df_2  
+
+#df_family_2 = (df201_date.groupby("docdb_family_id")
+#                         .applyInPandas(fun_2, schema=schema_family))
+
+replace appln_filing_date = subinstr(appln_filing_date, "-", "", .)
+
+gen appln_filing_date2 = date(appln_filing_date,"YMD")
+format appln_filing_date2 %td
+
+bysort docdb_family_id: egen min=min(appln_filing_date2)
+format min %td
+
+save "prioritarias_1.dta", replace
+
+generate id_min_appln_filing_date=0
+replace id_min_appln_filing_date=1 if appln_filing_date2==min
+
+drop if id_min_appln_filing_date != 1
+
+save "prioritarias_passo3.dta", replace
+
+use "prioritarias_passo3.2.dta"
+
+*Usamos como critério a data mais antiga entre as appln_filing_date. 
+**No entanto, há a possibilidade de que a earliest_filing_date seja diferente, inclusive mais antiga. 
+***Hipótese: earliest_filing_date é referente ao primeiro documento relacionado à invenção. 
+***Inclusive, existe a possibilidade de uma prioridade não ser publicada. Ver data catalog para opções da referência do earliest_filing_date (p.154)
+****Isso não invalida a nossa identificação da patente mais antiga. Mas, exigirá uma escolha sobre que data considerar (se appln_filing_date ou earliest_filing_date).
+
+keep appln_id op3
+save "prioritarias_passo3.3.dta"
+
+clear
+
+use "prioritarias_1.dta"
+
+merge m:m appln_id using "prioritarias_passo3.3.dta"
+
+generate id3=0
+replace id3=1 if _merge==1 
+replace id3=2 if _merge==2 
+replace id3=3 if _merge==3
+drop _merge
+
+*id=3 - resultado do passo 2
+*id 2 não temos, por a master é a base completa (a outra veio dela)
+*id=1 - são as patentes da base original que não são a informação mais antiga
+drop id3
+
+sort docdb_family_id dup
+
+save "prioritarias_2.dta"
+
+clear
+
+
+use "prioritarias_2.dta", replace
+
+*Identificação das patentes prioritárias
+*Filtrar o op1 (passos 1 e 2)
+keep if op1==1
+save "prioritarias_passos_1_2"
+
+*Filtrar o op3 (passo 3)
+clear
+use "prioritarias_2.dta"
+*Queremos identificar quais famílias já identificamos a prioritária
+merge m:m docdb_family_id using "prioritarias_passos_1_2"
+
+drop if _merge==3
+
+generate drop=0
+replace drop=1 if appln_id==op3
+drop if drop==0
+
+save "prioritarias_passo_3"
+
+clear
+
+use "prioritarias_passos_1_2.dta" 
+append using "prioritarias_passo_3.dta", generate (part) 
+
+keep appln_id earliest_filing_id docdb_family_id op1 op3 ///
+appln_filing_date2 earliest_filing_date earliest_filing_year ///
+appln_auth cpc_class_symbol 
+
+ren appln_filing_date2 appln_filing_date
+
+gen appln_filing_year=year(appln_filing_date)
+
+order appln_id earliest_filing_id op1 op3 docdb_family_id ///
+appln_filing_date earliest_filing_date earliest_filing_year appln_filing_year ///
+appln_auth cpc_class_symbol 
+
+save "prioritarias_final.dta", replace
+
+drop if appln_id==op3
+
+ *Manipulação
+clear 
+use "prioritarias_final.dta"
+    
+sort appln_id
+    
+quietly by appln_id: gen dup = cond(_N==1,0,_n)
+    
+drop if dup>1
+drop dup
+    
+save "prioritarias_unique.dta"
+
+
+
+# 6) selecionar anos que nos são de interesse
+*Agrupar por ano (Que ano? Earliest filing year)
+*AM_Alvarez-Meaza et al (2019): earliest priority date.
+*AM (laser)_Zarrabeitia et al (2018): publication date.
+*IoT_Ardito, D’Adda & Petruzzelli (2018)_Base: earliest priority date & publication date.
+**Earliest priority date is considered to be the best indication of when the original invention took place.
+***EARLIEST_FILING_YEAR refer to the earliest application, considering the application itself, its international applications, its Paris Convention priority applications, the applications with which it is related via technical relations and its application continuations. 
+***Only directly related applications are considered; this is unlike the INPADOC family, where applications might also be indirectly related.
+***In short: We define the group of all the applications which are directly linked to a specific application and then we take the "earliest" application of this group.
+
+clear
+use "prioritarias_unique.dta"
+
+egen nano = count(appln_id), by (earliest_filing_year)
+*egen nano = nvals(appln_id), by (earliest_filing_year) - conta unique
+
+keep earliest_filing_year nano
+
+sort earliest_filing_year
+
+quietly by earliest_filing_year: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+save "passo3.dta"
+
+
+#dfano = prioritarias_1.where((col("earliest_filing_year") >= 2000) & (~col("earliest_filing_year").isin([2018, 2019, 2020, 2021])))
+
+
+
+#Importando 206
+#Importando 207
+
+
+
+**Agrupar por escritório (Onde está o conhecimento?)
+clear
+use "prioritarias_unique.dta"
+
+keep if earliest_filing_year>1999
+
+egen nescr=count(appln_id), by (appln_auth)
+
+keep appln_auth nescr
+
+sort appln_auth
+
+quietly by appln_auth: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+sort nescr
+
+save "passo4.dta", replace
+*Número de patentes da indústria 4.0 por escritório.
+
+
+
+***Agrupar por escritório e ano (Tendência/Evolução)
+clear
+
+use "prioritarias_unique.dta"
+
+egen nescrano=count(appln_id), by (earliest_filing_year appln_auth)
+
+keep earliest_filing_year appln_auth nescrano
+
+sort earliest_filing_year appln_auth
+
+quietly by earliest_filing_year appln_auth: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+save "passo5.dta"
+*Número de patentes da indústria 4.0 por ano e escritório.
+*Aumentou mais em um país que em outro. Tendência para países de interesse. 
+
+# 6) Selecionar apenas aplicantes = inventores
+# está em spark
+df207_ia = df207_invt.where((col(['applt_seq_nr', 'invt_seq_nr']) > 0))))
+df207_ia.repartition(1).write.option("header", "true").csv("patstat")
+
+
+# Importar 229
+
+
+*Número de depósitos por campo tecnológico
+clear
+use "prioritarias_unique.dta"
+merge 1:m appln_id using "tls230.dta"
+
+generate id=0
+replace id=1 if _merge==1 
+replace id=2 if _merge==2 
+replace id=3 if _merge==3
+drop _merge
+
+*id 1 not matched from master (aquele appln não está relacionado a nenhum techfield - provavelmente não tem IPC)
+*id 2 not matched from using (tem techfield, mas não têm as demais info. porque não atende aos filtros)
+*id 3 matched
+
+drop if id!=3
+drop id 
+
+sort appln_id
+keep appln_id earliest_filing_year techn_field_nr weight
+
+save "tech_field.dta"
+
+clear
+use "tech_field.dta"
+keep if earliest_filing_year>1999
+save "tech_field_2000.dta", replace
+
+
+
+*Contagem fracionada 
+clear
+use "tech_field_2000.dta"
+
+egen techfield_fr=sum(weight), by (techn_field_nr)
+
+keep techn_field_nr techfield_fr
+
+sort techn_field_nr
+
+quietly by techn_field_nr: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+order techn_field_nr techfield_fr
+sort techfield_fr
+
+save "passo6.dta", replace
+
+
+
+*Contagem inteira 
+clear
+use "tech_field_2000.dta"
+
+egen techfield_int=count(appln_id), by (techn_field_nr)
+
+keep techn_field_nr techfield_int
+
+sort techn_field_nr
+
+quietly by techn_field_nr: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+order techn_field_nr techfield_int
+sort techfield_int
+
+save "passo7.dta", replace
+
+
+
+**Número de depósitos por campo tecnológico por ano. 
+*Contagem fracionada
+clear
+use "tech_field_2000.dta"
+
+egen techfieldano_fr=sum(weight), by (techn_field_nr earliest_filing_year)
+
+keep techn_field_nr earliest_filing_year techfieldano_fr
+
+sort techn_field_nr earliest_filing_year
+
+quietly by techn_field_nr earliest_filing_year: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+order techn_field_nr earliest_filing_year techfieldano_fr
+
+save "passo8.dta", replace
+*Soma do peso dos campos tecnológicos das patentes da indústria 4.0 por ano. 
+**Interpretação: O aumento do valor da soma pode ser atribuído 
+**tanto ao aumento do número de parentes quano ao aumento do peso daquele campo tecnológico.
+
+
+
+*Contagem inteira
+clear
+use "tech_field_2000.dta"
+
+egen techfieldano_int=count(appln_id), by (techn_field_nr earliest_filing_year)
+
+keep techn_field_nr earliest_filing_year techfieldano_int
+
+sort techn_field_nr earliest_filing_year
+
+quietly by techn_field_nr earliest_filing_year: gen dup = cond(_N==1,0,_n)
+
+drop if dup>1
+drop dup
+
+order techn_field_nr earliest_filing_year techfieldano_int
+
+save "passo9.dta", replace
+
+
+***Filtrar os campos tecnológicos do CEIS 
+*Se a patente tem alguma participação em um campo tecnológico do CEIS, ela fica. 
+clear
+use "tech_field_2000.dta"
+
+keep if techn_field_nr == 11 | techn_field_nr == 13 | techn_field_nr == 14 | ///
+techn_field_nr == 15 | techn_field_nr == 16 | techn_field_nr == 22 | techn_field_nr == 24
+
+tabulate techn_field_nr
+save "baseceis.dta", replace
+
+
+# 7) selecionar apenas as patentes que estão no nível internacional
+dfinternacional = df[df['int_phase']=='Y']
+df207_ia_int.repartition(1).write.option("header", "true").csv("patstat_int")   
